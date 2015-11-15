@@ -1,0 +1,9 @@
+#files
+*.so
+*.o
+*.log
+#folder
+#
+breakpad
+build
+.idea
