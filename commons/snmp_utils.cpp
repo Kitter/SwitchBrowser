@@ -252,6 +252,121 @@ int snmp_get(const SNMPOPT &opt, nlohmann::json &result) {
 }
 
 
+int snmp_bulkwalk(const SNMPOPT &opt, nlohmann::json &subtree) {
+  int ret = 0;
+
+  int reps = 20, non_reps = 0;
+  std::string msg{};
+  snmp_pdu *pdu;
+  snmp_pdu *response;
+  variable_list *vars;
+
+  oid name[MAX_OID_LEN] = {0};
+  size_t name_length = MAX_OID_LEN;
+  oid root[MAX_OID_LEN] = {0};
+  size_t rootlen = MAX_OID_LEN;
+
+  int nStatus = 0;
+  bool running = true;
+
+  char buf[MAX_OID_LEN] = {0};
+  std::string subname;
+  try {
+    if (read_objid(opt.oid.c_str(), name, &name_length)) {
+      read_objid(opt.oid.c_str(), root, &rootlen);
+      while (running) {
+
+        pdu = snmp_pdu_create(SNMP_MSG_GETBULK);
+        pdu->non_repeaters = non_reps;
+        pdu->max_repetitions = reps;    /* fill the packet */
+        snmp_add_null_var(pdu, name, name_length);
+
+        nStatus = snmp_sess_synch_response(opt.session, pdu, &response);
+
+        if (nStatus == STAT_SUCCESS) {
+          if (response->errstat == SNMP_ERR_NOERROR) {
+
+            for (vars = response->variables; vars;
+                 vars = vars->next_variable) {
+              if ((vars->name_length < rootlen)
+                  || (memcmp(root,vars->name, rootlen * sizeof(oid) ) != 0)) {
+                running = false;
+                continue;
+              }
+
+
+              if ((vars->type != SNMP_ENDOFMIBVIEW) && (vars->type != SNMP_NOSUCHOBJECT) &&
+                  (vars->type != SNMP_NOSUCHINSTANCE) && (vars->type != ASN_NULL)) {
+
+                snprint_objid(buf,MAX_OID_LEN,vars->name,vars->name_length);
+                subname = buf;
+                auto pos = subname.find("::");
+                if(pos != subname.npos) subname = subname.substr(pos+2);
+                if(match_phys_address(oid_to_string(vars->name,vars->name_length))) {
+                  subtree[subname] = snmp_hex_to_string(vars); ret += 1;
+                }else {
+                  nlohmann::json v;
+                  if (0 == parser_snmp_values(vars, v)) {
+                    subtree[subname] = v[0];
+                    ret += 1;
+                  }
+                }
+
+                memmove((char *) name, (char *) vars->name,
+                        vars->name_length * sizeof(oid));
+                name_length = vars->name_length;
+
+              }
+              else //an exception value, so stop
+              {
+
+                msg = "walk subtree, an exception value!";
+                running = false;
+              }
+            }
+          }
+          else { // Error in packet.
+            running = false;
+            msg = std::string("Error in packet. Reason: ") + snmp_errstring(response->errstat);
+            if (response->errstat == SNMP_ERR_NOSUCHNAME) {
+              msg += "The request for this object identifier failed: ";
+
+              if (vars)
+                msg += oid_to_string(vars->name, vars->name_length);
+            }
+          }
+        }
+
+        else if (nStatus == STAT_TIMEOUT) {
+          struct snmp_session *sptr = snmp_sess_session(opt.session);
+          msg = std::string("Timeout: No Response from ") + sptr->peername;
+          ret = -1; //timeout
+          running = false;
+        }
+
+        else {
+          msg = "snmpSubTree Other error occurs !";
+          running = false;
+        }
+
+        if (response) snmp_free_pdu(response);
+      }
+    }
+    else {  // error read_objid_xxxx
+      msg = std::string("read_objid error! oid: ") + opt.oid;
+    }
+  }
+  catch (const std::exception &e) {
+    msg = std::string("Exception: ") + e.what();
+  }
+  catch (...) {
+    msg = std::string("Unexcepitons occurs!");
+  }
+  if (ret <= 0)
+    subtree["error"] = msg;
+  return ret;
+}
+
 int snmp_walk(const SNMPOPT &opt, nlohmann::json &subtree) {
 
   int ret = 0;
@@ -371,7 +486,7 @@ int snmp_walk(const SNMPOPT &opt, nlohmann::json &subtree) {
 
 int snmp_table(const SNMPOPT& opt, nlohmann::json& table,bool with_name) {
   nlohmann::json columns;
-  auto ret = snmp_walk(opt,columns);
+  auto ret = snmp_bulkwalk(opt,columns);
 
   if(ret > 0) {
     if(with_name)

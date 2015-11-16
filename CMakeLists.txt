@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.2)
-project(collector)
+project(SwitchBrowser)
 
 # set version
-set(COLLECTOR_VERSION "0.8.2")
+set(COLLECTOR_VERSION "0.1.2")
 #
 # Debugging Options
 #
@@ -39,7 +39,7 @@ endforeach (OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES)
 message("Current CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 
-include_directories(include commons)
+include_directories(include commons sqlite3)
 #
 # Locate Project Prerequisites
 #
@@ -53,10 +53,20 @@ INCLUDE_DIRECTORIES(${NETSNMP_INCLUDE_DIRS})
 LINK_DIRECTORIES(${NETSNMP_LIBRARIES})
 
 
-set(V7_TEST_SRCS
-        commons/snmp_utils.cpp
-        V7_TEST.cpp
+# Copy all config files
+FILE(GLOB MIBS_FILES mibs/cisco-mibs/*.*)
+FOREACH(_filepath ${MIBS_FILES})
+    get_filename_component(var ${_filepath} NAME)
+    configure_file(${_filepath}  mibs/cisco-mibs/${var} COPYONLY)
+ENDFOREACH()
+
+
+set(TEST_SRCS
+    fetch_service.cpp
+    switch.cpp
+    commons/snmp_utils.cpp
+    TEST.cpp
         )
 
-add_executable(V7_TEST ${V7_TEST_SRCS})
-target_link_libraries(V7_TEST netsnmp)
+add_executable(TEST ${TEST_SRCS})
+target_link_libraries(TEST netsnmp)
