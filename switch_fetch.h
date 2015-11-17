@@ -1,18 +1,16 @@
 //
-// Created by sven on 11/16/15.
+// Created by sven on 11/17/15.
 //
 
-#ifndef COLLECTOR_SNMP_OIDS_H
-#define COLLECTOR_SNMP_OIDS_H
-
+#ifndef SWITCHBROWSER_SWITCH_FETCH_H
+#define SWITCHBROWSER_SWITCH_FETCH_H
 #include <string>
+#include <vector>
 
-const std::string IF_TABLE_OID = ".1.3.6.1.2.1.2.2";
-const std::string IFXTABLE_OID = "1.3.6.1.2.1.31.1.1";
-const std::string IP_ADDR_TABLE_OID = ".1.3.6.1.2.1.4.20";
-const std::string IPNET_TO_MEDIA_TABLE_OID = ".1.3.6.1.2.1.4.22";
+enum class SWitch {
+  H3C,RUIJIE
+};
 
-namespace switchboard {
 
 struct Interface {
   // if table
@@ -57,7 +55,29 @@ struct Arp {
   long ipNetToMediaType;
 };
 
-}
+struct IntfUtil {
+  std::string ifIndex{};
+  long ifSpeed{0};
+  long recvBitsPerSec{0};
+  long sentBitsPerSec{0};
+  double inIntfUtil{0.0};
+  double outIntfUtil{0.0};
+  long recvPkts{0};
+  long sentPkts{0};
+};
 
 
-#endif //COLLECTOR_SNMP_OIDS_H
+int get_arp_table(void*, std::vector<Arp>& arp_list);
+
+int get_ip_table(void*, std::vector<IpAddr>& ip_list);
+
+int get_if_table(void*, std::vector<Interface>& if_list);
+
+int get_mem_usage(void *, SWitch type, double&);
+
+int get_cpu_usage(void *, SWitch type, double&);
+
+int get_interface_util(void *, std::vector<IntfUtil>& util_list);
+
+
+#endif //SWITCHBROWSER_SWITCH_FETCH_H

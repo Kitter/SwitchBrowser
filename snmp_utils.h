@@ -10,7 +10,6 @@
 
 #include <string>
 
-namespace snmp {
 
 struct SNMPOPT {
   void		*session{nullptr};
@@ -59,9 +58,6 @@ private:
 int snmp_walk(const SNMPOPT &opt, nlohmann::json &columns);
 int snmp_bulkwalk(const SNMPOPT &opt, nlohmann::json &columns);
 int snmp_get(const SNMPOPT &opt, nlohmann::json &values);
-int snmp_table(const SNMPOPT&opt, nlohmann::json & table,bool with_name = false);
+size_t snmp_table(const SNMPOPT&opt, nlohmann::json & table);
 
 
-
-
-}

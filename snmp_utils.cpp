@@ -9,7 +9,7 @@
 #include <net-snmp/types.h>
 
 
-namespace snmp {
+
 
 
 //sometimes the octet string contains all printable charachters and this produces unexpected output when it is
@@ -121,47 +121,58 @@ static int parser_snmp_values(const struct variable_list *pvars, nlohmann::json 
 }
 
 
-static void to_base_name(std::string& name) {
+static void device_to_col_and_index(const std::string& name,
+                                    std::string& colname,
+                                    std::string& index){
   auto pos = name.find(".");
   if(pos != name.npos) {
-    name = name.substr(0,pos);
+    colname = name.substr(0,pos);
+    index = name.substr(pos + 1);
+  } else {
+    colname = name;
+    index = "";
   }
+
 }
 
+static size_t find_in_vec(const std::vector<std::string>& vec, const std::string& name) {
 
-static int columns_to_table(const nlohmann::json& columns, nlohmann::json& table) {
+  size_t i = 0; bool found = false;
+  for (; i != vec.size(); ++i) {
+    if (name == vec[i]) {
+      found = true; break;
+    }
+  }
+  if(found) return i; else return name.npos;
+}
+
+static size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table) {
 
   if(columns.size() == 1) {
     table = columns;
     return 1;
   }
 
-  //get all column names;
-  std::vector<std::string> names;
-  std::string name = columns.cbegin().key();
+  std::vector<std::string> fakeindex;
 
   for(auto it = columns.cbegin();it != columns.cend(); ++it) {
-    std::string name = it.key();
-    to_base_name(name);
-    names.push_back(name);
-  }
-  names.erase(std::unique(names.begin(),names.end()),names.end());
 
-  const auto row_size = columns.size()/names.size();
+    std::string colname, rowname ;
+    device_to_col_and_index(it.key(),colname,rowname);
 
-  //push null objects
-  for(size_t i = 0; i != row_size; ++i) {
-    table.push_back(nlohmann::json::object());
+    auto rowindex = find_in_vec(fakeindex,rowname);
+
+    //did not find
+    if(rowindex == rowname.npos) {
+      table.push_back(nlohmann::json::object());
+      fakeindex.push_back(rowname);
+      rowindex = table.size() - 1;
+      table[rowindex]["_fake_index"] = rowname;
+    }
+    table[rowindex][colname] = it.value();
   }
 
-  int j = 0;
-  for(auto it = columns.cbegin();it != columns.cend(); ++it) {
-    auto c = j%row_size;
-    auto r = j/row_size;
-    table[c][names[r]] = it.value();
-    ++j;
-  }
-  return row_size;
+  return table.size();
 
 }
 
@@ -484,15 +495,11 @@ int snmp_walk(const SNMPOPT &opt, nlohmann::json &subtree) {
 }
 
 
-int snmp_table(const SNMPOPT& opt, nlohmann::json& table,bool with_name) {
+size_t snmp_table(const SNMPOPT& opt, nlohmann::json& table) {
   nlohmann::json columns;
   auto ret = snmp_bulkwalk(opt,columns);
-
   if(ret > 0) {
-    if(with_name)
-      ret = columns_to_table(columns,table[opt.name]);
-    else
-      ret = columns_to_table(columns,table);
+    ret = columns_to_table(columns,table);
   } else {
     table = columns; // ret <=0; -1 == timeout
   }
@@ -501,7 +508,3 @@ int snmp_table(const SNMPOPT& opt, nlohmann::json& table,bool with_name) {
 }
 
 
-
-
-
-}

@@ -39,7 +39,6 @@ endforeach (OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES)
 message("Current CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 
-include_directories(include commons sqlite3)
 #
 # Locate Project Prerequisites
 #
@@ -62,9 +61,8 @@ ENDFOREACH()
 
 
 set(TEST_SRCS
-    fetch_service.cpp
-    switch.cpp
-    commons/snmp_utils.cpp
+    snmp_utils.cpp
+    switch_fetch.cpp
     TEST.cpp
         )
 
