@@ -58,6 +58,11 @@ FOREACH(_filepath ${MIBS_FILES})
     get_filename_component(var ${_filepath} NAME)
     configure_file(${_filepath}  mibs/cisco-mibs/${var} COPYONLY)
 ENDFOREACH()
+FILE(GLOB MIBS_FILES mibs/ruijie-mibs/*.*)
+FOREACH(_filepath ${MIBS_FILES})
+    get_filename_component(var ${_filepath} NAME)
+    configure_file(${_filepath}  mibs/ruijie-mibs/${var} COPYONLY)
+ENDFOREACH()
 
 
 set(TEST_SRCS

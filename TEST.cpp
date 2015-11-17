@@ -14,10 +14,11 @@ using namespace std;
 int main() {
 
   init_snmp("test");
-  add_mibdir("../lib/juniper-mibs/snmpv2");
+  add_mibdir("../mibs/cisco-mibs");
+  add_mibdir("../mibs/ruijie-mibs");
   read_all_mibs();
 
-  Session _session("210.73.204.7","Test");
+  Session _session("210.73.204.6","Test");
 
   auto ss = _session.get_session();
 
@@ -43,14 +44,20 @@ int main() {
 //    cout << "current intf ifIndex: " <<intf.ifIndex <<" ifDescr " << intf.ifDescr  << " ifPhysAddress: " << intf.ifPhysAddress << endl;
 //  }
 
-  std::vector<IntfUtil> intflist;
+//  std::vector<IntfUtil> intflist;
+//
+//  cout <<"Get interface size: " << get_interface_util(ss,intflist) << endl;
+//
+//  for(const auto& intf : intflist) {
+//    cout << "current intf ifIndex: " <<intf.ifIndex <<" recvBitsPerSec " << intf.recvBitsPerSec  << endl;
+//  }
 
-  cout <<"Get interface size: " << get_interface_util(ss,intflist) << endl;
+  double memusage = 0;
+  get_ruijjie_mem_usage(ss,memusage);
+  cout << memusage << endl;
 
-  for(const auto& intf : intflist) {
-    cout << "current intf ifIndex: " <<intf.ifIndex <<" recvBitsPerSec " << intf.recvBitsPerSec  << endl;
-  }
-
+  get_ruijjie_cpu_usage(ss,memusage);
+  cout << memusage << endl;
   shutdown_mib();
 
   return 0;

@@ -75,6 +75,10 @@ int get_if_table(void*, std::vector<Interface>& if_list);
 
 int get_mem_usage(void *, SWitch type, double&);
 
+int get_ruijjie_mem_usage(void*, double&);
+
+int get_ruijjie_cpu_usage(void*, double&);
+
 int get_cpu_usage(void *, SWitch type, double&);
 
 int get_interface_util(void *, std::vector<IntfUtil>& util_list);

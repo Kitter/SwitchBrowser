@@ -12,6 +12,12 @@ const std::string IFXTABLE_OID = "1.3.6.1.2.1.31.1.1";
 const std::string IP_ADDR_TABLE_OID = ".1.3.6.1.2.1.4.20";
 const std::string IPNET_TO_MEDIA_TABLE_OID = ".1.3.6.1.2.1.4.22";
 
+const std::string RUIJIE_MEMPOOL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35";
+const std::string RUIJIE_MEMUTIL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.1";
+
+const std::string RUIJIE_CPU_OID = ".1.3.6.1.4.1.4881.1.1.10.2.36";
+const std::string RUIJIE_CPU5SEC_OID = "1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0";
+
 
 
 int get_arp_table(void* ss, std::vector<Arp>& arp_list){
@@ -192,6 +198,44 @@ int get_interface_util(void * ss, std::vector<IntfUtil>& util_list){
 
 }
 
+
+int get_ruijjie_mem_usage(void*ss , double& usage) {
+  int nRet = 0;
+  try{
+    SNMPOPT opt(ss);
+    opt.name = "memutil";
+    opt.oid = RUIJIE_MEMUTIL_OID;
+    nlohmann::json j;
+
+    if(snmp_get(opt,j) == 0) {
+      usage = j["memutil"].get<double>();
+    }
+
+  }catch (...) {
+    nRet = -1;
+  }
+
+  return nRet;
+}
+
+int get_ruijjie_cpu_usage(void* ss, double& usage) {
+  int nRet = 0;
+  try{
+    SNMPOPT opt(ss);
+    opt.name = "cpuutil";
+    opt.oid = RUIJIE_CPU5SEC_OID;
+    nlohmann::json j;
+
+    if(snmp_get(opt,j) == 0) {
+      usage = j["cpuutil"].get<double>();
+    }
+
+  }catch (...) {
+    nRet = -1;
+  }
+
+  return nRet;
+}
 
 int get_mem_usage(void * ss, const SWitch type, double& usage){
   int nRet = 0;
