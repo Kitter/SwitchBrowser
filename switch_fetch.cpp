@@ -19,7 +19,6 @@ const std::string RUIJIE_CPU_OID = ".1.3.6.1.4.1.4881.1.1.10.2.36";
 const std::string RUIJIE_CPU5SEC_OID = "1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0";
 
 
-
 int get_arp_table(void* ss, std::vector<Arp>& arp_list){
   int nRet = 0;
   try {
@@ -135,59 +134,53 @@ int get_interface_util(void * ss, std::vector<IntfUtil>& util_list){
     auto ts2 = snmp_table(opt, ifxtable2);
     if (ts2 == 0) return -1;
 
-    if(ts != ts1 && ts != ts2) return -1;
+    if(ts1 != ts2) return -1;
+
+    std::map<std::string,IntfUtil> utils_map{};
+
+    for (size_t i = 0; i != ts1; ++i) {
+      auto key = ifxtable2[i]["_fake_index"].get<std::string>();
+      IntfUtil base;
+
+      if( not ifxtable2[i]["ifHCInOctets"].is_null()) {
+        base.recvBytes = ifxtable2[i]["ifHCInOctets"].get<long>();
+        base.recvBitsPerSec = base.recvBytes - ifxtable1[i]["ifHCInOctets"].get<long>();
+      }
+
+      if(not ifxtable2[i]["ifHCOutOctets"].is_null()) {
+        base.sentBytes = ifxtable2[i]["ifHCOutOctets"].get<long>();
+        base.sentBitsPerSec = base.sentBytes - ifxtable1[i]["ifHCOutOctets"].get<long>();
+      }
+
+      if( not ifxtable2[i]["ifHCInUcastPkts"].is_null())
+        base.recvPkts += ifxtable2[i]["ifHCInUcastPkts"].get<long>();
+      if( not ifxtable2[i]["ifHCInMulticastPkts"].is_null())
+        base.recvPkts += ifxtable2[i]["ifHCInMulticastPkts"].get<long>();
+      if( not ifxtable2[i]["ifHCInBroadcastPkts"].is_null())
+        base.recvPkts += ifxtable2[i]["ifHCInBroadcastPkts"].get<long>();
+
+
+      if( not ifxtable2[i]["ifHCOutUcastPkts"].is_null())
+        base.sentPkts += ifxtable2[i]["ifHCOutUcastPkts"].get<long>();
+      if( not ifxtable2[i]["ifHCOutMulticastPkts"].is_null())
+        base.sentPkts += ifxtable2[i]["ifHCOutMulticastPkts"].get<long>();
+      if( not ifxtable2[i]["ifHCOutBroadcastPkts"].is_null())
+        base.sentPkts += ifxtable2[i]["ifHCOutBroadcastPkts"].get<long>();
+
+      utils_map[key] = base;
+    }
 
 
     for (size_t i = 0; i != ts; ++i) {
       IntfUtil util;
-
       util.ifIndex = iftable[i]["_fake_index"].get<std::string>();
-
-      auto ifx1index = ifxtable1[i]["_fake_index"].get<std::string>();
-      auto ifx2index = ifxtable2[i]["_fake_index"].get<std::string>();
-      assert(ifx1index == ifx2index);
-      assert(ifx1index == util.ifIndex);
-
+      if(utils_map.find(util.ifIndex) != utils_map.end()) {
+        util = utils_map[util.ifIndex];
+      }
       util.ifSpeed = iftable[i]["ifSpeed"].get<long>();
-
-      long recv = 0;
-      if( not ifxtable2[i]["ifHCInOctets"].is_null())
-        recv = ifxtable2[i]["ifHCInOctets"].get<long>() - ifxtable1[i]["ifHCInOctets"].get<long>();
-      long send = 0;
-      if( not ifxtable2[i]["ifHCOutOctets"].is_null())
-        send = ifxtable2[i]["ifHCOutOctets"].get<long>() - ifxtable1[i]["ifHCOutOctets"].get<long>();
-
-      util.recvBitsPerSec = recv;
-      util.sentBitsPerSec = send;
-
-      util.inIntfUtil = recv*1.0 / util.ifSpeed;
-      util.inIntfUtil = send*1.0 / util.ifSpeed;
-
-      long recvPkts = 0;
-      if( not ifxtable2[i]["ifHCInUcastPkts"].is_null())
-        recvPkts += ifxtable2[i]["ifHCInUcastPkts"].get<long>();
-      if( not ifxtable2[i]["ifHCInMulticastPkts"].is_null())
-        recvPkts += ifxtable2[i]["ifHCInMulticastPkts"].get<long>();
-      if( not ifxtable2[i]["ifHCInBroadcastPkts"].is_null())
-        recvPkts += ifxtable2[i]["ifHCInBroadcastPkts"].get<long>();
-
-      util.recvPkts = recvPkts;
-
-
-      long sentPkts = 0;
-      if( not ifxtable2[i]["ifHCOutUcastPkts"].is_null())
-        sentPkts += ifxtable2[i]["ifHCOutUcastPkts"].get<long>();
-      if( not ifxtable2[i]["ifHCOutMulticastPkts"].is_null())
-        sentPkts += ifxtable2[i]["ifHCOutMulticastPkts"].get<long>();
-      if( not ifxtable2[i]["ifHCOutBroadcastPkts"].is_null())
-        sentPkts += ifxtable2[i]["ifHCOutBroadcastPkts"].get<long>();
-
-      util.sentPkts = sentPkts;
-
      util_list.push_back(util);
       ++nRet;
     }
-
 
 
   }catch (...) {

@@ -44,13 +44,13 @@ int main() {
 //    cout << "current intf ifIndex: " <<intf.ifIndex <<" ifDescr " << intf.ifDescr  << " ifPhysAddress: " << intf.ifPhysAddress << endl;
 //  }
 
-//  std::vector<IntfUtil> intflist;
-//
-//  cout <<"Get interface size: " << get_interface_util(ss,intflist) << endl;
-//
-//  for(const auto& intf : intflist) {
-//    cout << "current intf ifIndex: " <<intf.ifIndex <<" recvBitsPerSec " << intf.recvBitsPerSec  << endl;
-//  }
+  std::vector<IntfUtil> intflist;
+
+  cout <<"Get interface size: " << get_interface_util(ss,intflist) << endl;
+
+  for(const auto& intf : intflist) {
+    cout << "current intf ifIndex: " <<intf.ifIndex <<" recvBitsPerSec " << intf.recvBitsPerSec  << endl;
+  }
 
   double memusage = 0;
   get_ruijjie_mem_usage(ss,memusage);

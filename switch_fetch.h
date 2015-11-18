@@ -64,6 +64,8 @@ struct IntfUtil {
   double outIntfUtil{0.0};
   long recvPkts{0};
   long sentPkts{0};
+  long recvBytes{0};
+  long sentBytes{0};
 };
 
 
