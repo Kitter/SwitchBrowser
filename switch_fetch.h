@@ -4,86 +4,60 @@
 
 #ifndef SWITCHBROWSER_SWITCH_FETCH_H
 #define SWITCHBROWSER_SWITCH_FETCH_H
+
 #include <string>
 #include <vector>
 
-enum class SWitch {
-  H3C,RUIJIE
+
+
+struct SwitchInfo {
+  
+  enum TYPE {
+    H3C, RUIJIE
+  };
+  TYPE type{H3C};
+  std::string name{};
+  std::string ip{};
+  double cpuUtil{0.0};
+  double memUtil{0.0};
+  double intfHighInUtil{0.0};
+  double intfHighOutUtil{0.0};
+  long sysUpTime{0};
+  
+};
+
+struct InterfaceInfo {
+  
+  std::string name{};
+  std::string ip{};
+  std::string desc{};
+  std::string mask{};
+  std::string mac{};
+  std::string status;
+  double recvBitsPerSec{0.0};
+  double sentBitsPerSec{0.0};
+  double recvPktsPerSec{0.0};
+  double sentPktsPerSec{0.0};
+  
 };
 
 
-struct Interface {
-  // if table
-  long ifIndex;
-  std::string ifDescr;
-  long ifType;
-  long ifSpeed;
-  std::string ifPhysAddress;
-  long ifAdminStatus;
-  long ifOperStatus;
-  long ifLastChange;
+//if get success return 0;
+int get_switch_info(const std::string& ip,
+                    const std::string& community,
+                    const SwitchInfo::TYPE type,
+                    SwitchInfo& info);
 
-//  long ifMtu;
-//  long ifInOctets;
-//  long ifInUcastPkts;
-//  long ifInNUcastPkts;
-//  long ifInDiscards;
-//  long ifInErrors;
-//  long ifInUnknownProtos;
-//  long ifOutOctets;
-//  long ifOutUcastPkts;
-//  long ifOutNUcastPkts;
-//  long ifOutDiscards;
-//  long ifOutErrors;
-//  long ifOutQLen;
-//  std::string  ifSpecific;
-};
-
-struct IpAddr {
-  std::string ipAdEntAddr;
-  long ipAdEntIfIndex;
-  std::string ipAdEntNetMask;
-//  long ipAdEntBcastAddr;
-//  long ipAdEntReasmMaxSize;
-};
+//if get success return 0;
+int get_interface_info(const std::string& ip,
+                       const std::string& community,
+                       const SwitchInfo::TYPE type,
+                       std::vector<InterfaceInfo>& if_list);
 
 
-struct Arp {
-  long ipNetToMediaIfIndex;
-  std::string ipNetToMediaPhysAddress;
-  std::string ipNetToMediaNetAddress;
-  long ipNetToMediaType;
-};
-
-struct IntfUtil {
-  std::string ifIndex{};
-  long ifSpeed{0};
-  long recvBitsPerSec{0};
-  long sentBitsPerSec{0};
-  double inIntfUtil{0.0};
-  double outIntfUtil{0.0};
-  long recvPkts{0};
-  long sentPkts{0};
-  long recvBytes{0};
-  long sentBytes{0};
-};
 
 
-int get_arp_table(void*, std::vector<Arp>& arp_list);
 
-int get_ip_table(void*, std::vector<IpAddr>& ip_list);
-
-int get_if_table(void*, std::vector<Interface>& if_list);
-
-int get_mem_usage(void *, SWitch type, double&);
-
-int get_ruijjie_mem_usage(void*, double&);
-
-int get_ruijjie_cpu_usage(void*, double&);
-
-int get_cpu_usage(void *, SWitch type, double&);
-
-int get_interface_util(void *, std::vector<IntfUtil>& util_list);
 
 
 #endif //SWITCHBROWSER_SWITCH_FETCH_H
