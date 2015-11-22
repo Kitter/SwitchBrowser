@@ -57,7 +57,4 @@ int get_interface_info(const std::string& ip,
 
 
 
-
-
-
 #endif //SWITCHBROWSER_SWITCH_FETCH_H

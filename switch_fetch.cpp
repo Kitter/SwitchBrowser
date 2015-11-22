@@ -513,7 +513,7 @@ size_t SwitchFetcher::get_ip_table(std::map<std::string,IpAddr>& ipaddrs) {
         for (const auto &row : ip_table) {
           
           auto local_ip = row["ipAdEntAddr"].get<std::string>();
-          if(local_ip == "127.0.0.1") continue;
+          //if(local_ip == "127.0.0.1") continue;
           
           node_net.ipAdEntAddr = local_ip;
           node_net.ipAdEntIfIndex = row["ipAdEntIfIndex"].get<long>();
