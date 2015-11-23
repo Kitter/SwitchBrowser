@@ -13,7 +13,7 @@
 struct SwitchInfo {
   
   enum TYPE {
-    H3C, RUIJIE
+    H3C, RUIJIE,CISCO //,LINUX,JUNIPER
   };
   TYPE type{H3C};
   std::string name{};

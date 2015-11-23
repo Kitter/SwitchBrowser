@@ -18,8 +18,15 @@ const std::string RUIJIE_MEMUTIL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.1"
 const std::string RUIJIE_CPU_OID = ".1.3.6.1.4.1.4881.1.1.10.2.36";
 const std::string RUIJIE_CPU5SEC_OID = "1.3.6.1.4.1.4881.1.1.10.2.36.1.1.1.0";
 
-const std::string H3C_CPUUTIL_OID = ".1.3.6.1.4.1.2011.10.2.6.1.1.1.1.6";
-const std::string H3C_MEMUTIL_OID = ".1.3.6.1.4.1.2011.10.2.6.1.1.1.1.6";
+const std::string CISCO_CPUUTIL_OID = ".1.3.6.1.4.1.9.2.1.56.0";
+const std::string CISCO_MEMUTIL_OID = ".1.3.6.1.4.1.2011.10.2.6.1.1.1.1.6";
+const std::string CISCO_MEMORY_POOL_OID = ".1.3.6.1.4.1.9.9.48.1.1"; //ciscoMemoryPool
+
+
+const std::string ENT_PHYSICAL_CLASS_OID = "1.3.6.1.2.1.47.1.1.1.1.5"; //entPhysicalClass
+
+const std::string HH3C_CPUUTIL_PRE_OID = "1.3.6.1.4.1.25506.2.6.1.1.1.1.6";
+const std::string HH3C_MEMUTIL_PRE_OID = "1.3.6.1.4.1.25506.2.6.1.1.1.1.8";
 
 const std::string SYS_UPTIME_OID = ".1.3.6.1.2.1.1.3.0";
 
@@ -81,14 +88,14 @@ namespace  {
   class MIBLoader {
   public:
     MIBLoader() noexcept {
-    
+      
       init_snmp("SWITCH Fetch");
       add_mibdir("../mibs/cisco-mibs");
       add_mibdir("../mibs/ruijie-mibs");
       add_mibdir("../mibs/h3c-mibs");
       read_all_mibs();
-      printf("init snmp and loading all mibs");
-    
+      printf("init snmp and loading all mibs.\r\n");
+      
     }
     
     ~MIBLoader(){
@@ -105,8 +112,8 @@ static std::string ifAdminStatus2str(int nType);
 class SwitchFetcher {
   
 public:
-  SwitchFetcher(const std::string& ip,const std::string& community) {
-   
+  SwitchFetcher(const std::string& ip,const std::string& community):_ip(ip) {
+    
     try {
       snmp_sess_init(&_session);
       _session.version = SNMP_VERSION_2c;
@@ -128,7 +135,7 @@ public:
     }
     free(_session.peername);
     snmp_close(&_session);
-  
+    
   }
   
   
@@ -151,25 +158,48 @@ protected:
   
   size_t get_ip_table(std::map<std::string,IpAddr>& ips);
   
+  bool get_h3c_util_index(std::string& index);
+  
+  bool get_h3c_cpu_usage(double& usage);
+  
+  bool get_h3c_mem_usage(double& usage);
+  
 private:
   
+  const std::string _ip;
+  
   void* _ss{nullptr};
+  
   netsnmp_session _session;
   
-  static MIBLoader _mib_loader;
+  const static MIBLoader _mib_loader;
+  
+  static std::mutex _mutex;
+  static std::map<std::string,std::string> _cached_h3c_index;
   
 };
 
-MIBLoader SwitchFetcher::_mib_loader{};
+const MIBLoader SwitchFetcher::_mib_loader{};
+std::map<std::string,std::string> SwitchFetcher::_cached_h3c_index;
+std::mutex SwitchFetcher::_mutex;
+
+
+
 
 bool SwitchFetcher::get_cpu_usage(SwitchInfo::TYPE type, double& usage) {
   bool ret = false;
   switch (type) {
-    case SwitchInfo::H3C:
-     ret = get_double_with_one_oid(H3C_CPUUTIL_OID, usage);
+    case SwitchInfo::H3C: {
+      //ret = get_double_with_one_oid(H3C_CPUUTIL_OID, usage);
+      ret = get_h3c_cpu_usage(usage);
       break;
+    }
+      
     case SwitchInfo::RUIJIE:
       ret = get_double_with_one_oid(RUIJIE_CPU5SEC_OID, usage);
+      break;
+    case SwitchInfo::CISCO:
+      ret = get_double_with_one_oid(CISCO_CPUUTIL_OID, usage);
       break;
       
     default:
@@ -182,11 +212,43 @@ bool SwitchFetcher::get_mem_usage(SwitchInfo::TYPE type, double& usage) {
   bool ret = false;
   switch (type) {
     case SwitchInfo::H3C:
-      ret = get_double_with_one_oid(H3C_MEMUTIL_OID, usage);
+      ret = get_h3c_mem_usage(usage);
       break;
     case SwitchInfo::RUIJIE:
       ret = get_double_with_one_oid(RUIJIE_MEMUTIL_OID, usage);
       break;
+    case SwitchInfo::CISCO: {
+      
+      try {
+        if (_ss) {
+          SNMPOPT opt(_ss);
+          opt.oid = CISCO_MEMORY_POOL_OID;
+          nlohmann::json table{};
+          if(snmp_table(opt, table) > 0) {
+            
+            for(const auto& row : table) {
+              
+              if(row["ciscoMemoryPoolName"].get<std::string>() == "I/O") {
+                
+                auto fre = row["ciscoMemoryPoolFree"].get<long>();
+                
+                auto used = row["ciscoMemoryPoolUsed"].get<long>();
+                
+                usage = used*100.0/(used + fre);
+                ret = true;
+                break;
+              }
+            }
+          }
+          
+        }
+      } catch (...) {
+        ;
+      }
+      
+      break;
+    }
+      
       
     default:
       break;
@@ -225,8 +287,9 @@ bool SwitchFetcher::get_double_with_one_oid(const std::string& oid,double& usage
     nlohmann::json j;
     if(snmp_get(opt,j) == 0) {
       usage = j["usage"].get<double>();
+      ret = true;
     }
-    ret = true;
+    
   }
   
   return ret;
@@ -245,12 +308,11 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
       
       auto ts1 = snmp_table(opt, ifxtable1);
       if (ts1 == 0) return rc;
-      
       std::this_thread::sleep_for(std::chrono::seconds(1));
       
       auto ts2 = snmp_table(opt, ifxtable2);
-      if (ts2 == 0) return rc;
       
+      if (ts2 == 0) return rc;
       if (ts1 != ts2) return rc;
       
       for (size_t i = 0; i != ts1; ++i) {
@@ -326,11 +388,10 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
       opt.oid = IF_TABLE_OID;
       auto ts = snmp_table(opt, iftable);
       if (ts == 0) return rc;
-      
       std::map<std::string,InOutRate> rates{};
       
       rc = get_intf_inout_rate(rates,true);
-          
+      
       if (rc == 0) {
         return rc;
       }
@@ -348,9 +409,10 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
         
         auto ifSpeed = iftable[i]["ifSpeed"].get<long>();
         
-          
-          inout_util.first = rate.recvBitsPerSec*100.0/ifSpeed;
-          inout_util.second = rate.sentBitsPerSec*100.0/ifSpeed;
+        
+        inout_util.first = rate.recvBitsPerSec*100.0/ifSpeed;
+        inout_util.second = rate.sentBitsPerSec*100.0/ifSpeed;
+        
         
         util_pairs.push_back(inout_util);
       }
@@ -376,6 +438,7 @@ size_t SwitchFetcher::get_intf_info_list(SwitchInfo::TYPE type,std::vector<Inter
       
       opt.oid = IF_TABLE_OID;
       auto ts = snmp_table(opt, iftable);
+      
       if (ts == 0) return rc;
       
       std::map<std::string,InOutRate> rates{};
@@ -387,7 +450,7 @@ size_t SwitchFetcher::get_intf_info_list(SwitchInfo::TYPE type,std::vector<Inter
       std::map<std::string,IpAddr> ipaddrs{};
       
       get_ip_table(ipaddrs);
-    
+      
       info_list.clear();
       for (size_t i = 0; i != ts; ++i) {
         
@@ -400,7 +463,7 @@ size_t SwitchFetcher::get_intf_info_list(SwitchInfo::TYPE type,std::vector<Inter
         
         info.desc = iftable[i]["ifDescr"].get<std::string>();
         
-        info.status = iftable[i]["ifAdminStatus"].get<int>();
+        info.status = ifAdminStatus2str(iftable[i]["ifAdminStatus"].get<int>());
         
         
         //get ifxtable info
@@ -450,11 +513,11 @@ int get_switch_info(const std::string& ip,
     if (fetcher.get_cpu_usage(type, info.cpuUtil) &&
         fetcher.get_mem_usage(type, info.memUtil) &&
         fetcher.get_sys_uptime(info.sysUpTime) ) {
-        
+      
       std::vector<std::pair<double, double>> util_pairs;
-          
+      
       if (fetcher.get_intf_usage_pairs(type, util_pairs) > 0) {
-            
+        
         for (const auto& p : util_pairs) {
           
           if (info.intfHighInUtil < p.first) info.intfHighInUtil = p.first;
@@ -464,8 +527,9 @@ int get_switch_info(const std::string& ip,
         }
         ret = 0;
       }
+      info.ip = ip;
     }
-  
+    
   } catch (const std::exception& ex) {
     ret = 1;
   }
@@ -503,26 +567,26 @@ int get_interface_info(const std::string& ip,
 size_t SwitchFetcher::get_ip_table(std::map<std::string,IpAddr>& ipaddrs) {
   size_t rc = 0;
   try {
-      SNMPOPT opt(_ss);
-      opt.oid = IP_ADDR_TABLE_OID;
-      
-      nlohmann::json ip_table;
-      
-      if (snmp_table(opt, ip_table) > 0) {
-        IpAddr node_net;
-        for (const auto &row : ip_table) {
-          
-          auto local_ip = row["ipAdEntAddr"].get<std::string>();
-          //if(local_ip == "127.0.0.1") continue;
-          
-          node_net.ipAdEntAddr = local_ip;
-          node_net.ipAdEntIfIndex = row["ipAdEntIfIndex"].get<long>();
-          node_net.ipAdEntNetMask = row["ipAdEntNetMask"].get<std::string>();
-          auto key = std::to_string(node_net.ipAdEntIfIndex);
-          ipaddrs[key] = node_net;
-          ++rc;
-        }
+    SNMPOPT opt(_ss);
+    opt.oid = IP_ADDR_TABLE_OID;
+    
+    nlohmann::json ip_table;
+    
+    if (snmp_table(opt, ip_table) > 0) {
+      IpAddr node_net;
+      for (const auto &row : ip_table) {
+        
+        auto local_ip = row["ipAdEntAddr"].get<std::string>();
+        //if(local_ip == "127.0.0.1") continue;
+        
+        node_net.ipAdEntAddr = local_ip;
+        node_net.ipAdEntIfIndex = row["ipAdEntIfIndex"].get<long>();
+        node_net.ipAdEntNetMask = row["ipAdEntNetMask"].get<std::string>();
+        auto key = std::to_string(node_net.ipAdEntIfIndex);
+        ipaddrs[key] = node_net;
+        ++rc;
       }
+    }
     
   }
   catch (const std::exception &e) {
@@ -543,3 +607,104 @@ std::string ifAdminStatus2str(int nType) {
   return strret;
 }
 
+bool get_h3c_cpu_usage(void *ss, double& usage) {
+  bool rc = false;
+  
+  try {
+    
+    if (not ss) return rc;
+    
+    SNMPOPT opt(ss);
+    opt.oid = ENT_PHYSICAL_CLASS_OID;
+    nlohmann::json j;
+    if (snmp_walk(opt, j) > 0) {
+      std::string index{};
+      for (auto iter = j.cbegin(); iter != j.cend(); ++iter) {
+        if (int(iter.value()) == 9) {
+          index = std::string(iter.key());
+          break;
+        }
+      }
+      if (index.empty()) return rc;
+      
+      auto pos = index.find(".");
+      if(pos != index.npos){
+        
+        opt.oid = HH3C_CPUUTIL_PRE_OID + index.substr(pos);
+        
+        opt.name = "usage";
+        nlohmann::json u{};
+        
+        if (snmp_get(opt, u) == 0) {
+          usage = u["usage"].get<double>();
+          rc = true;
+        }
+      }
+    }
+    
+  } catch (const std::exception& ex) {
+    ;
+  }
+  return rc;
+}
+
+bool SwitchFetcher::get_h3c_cpu_usage(double& usage) {
+  bool ret = false;
+  std::string index{};
+  if (get_h3c_util_index(index)) {
+    return get_double_with_one_oid(HH3C_CPUUTIL_PRE_OID + index, usage);
+  }
+  return ret;
+  
+}
+
+bool SwitchFetcher::get_h3c_mem_usage(double& usage) {
+  bool ret = false;
+  std::string index{};
+  if (get_h3c_util_index(index)) {
+    return get_double_with_one_oid(HH3C_MEMUTIL_PRE_OID + index, usage);
+  }
+  return ret;
+}
+
+bool SwitchFetcher::get_h3c_util_index(std::string& index){
+  bool rc = false;
+  if (_cached_h3c_index.find(_ip) != _cached_h3c_index.end()) {
+    index = _cached_h3c_index[_ip];
+    return !rc;
+  }
+  else {
+    
+    try {
+      if (_ss) {
+        SNMPOPT opt(_ss);
+        opt.oid = ENT_PHYSICAL_CLASS_OID;
+        nlohmann::json j;
+        if (snmp_walk(opt, j) > 0) {
+          std::string temp{};
+          for (auto iter = j.cbegin(); iter != j.cend(); ++iter) {
+            if (int(iter.value()) == 9) {
+              temp = std::string(iter.key());
+              break;
+            }
+          }
+          if (temp.empty()) return rc;
+          
+          auto pos = temp.find(".");
+          if(pos != temp.npos){
+            index = temp.substr(pos);
+            rc = true;
+            std::unique_lock<std::mutex> t1(_mutex);
+            _cached_h3c_index[_ip] = index;
+          }
+        }
+        
+      }
+      
+    }catch(...) {
+      return false;
+    }
+    return rc;
+  }
+  
+}
