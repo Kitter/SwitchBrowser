@@ -6,6 +6,11 @@
 #include "snmp_utils.h"
 #include <cassert>
 #include <thread>
+#include <chrono>
+
+using ms = std::chrono::milliseconds;
+using get_time = std::chrono::steady_clock;
+
 
 const std::string IF_TABLE_OID = ".1.3.6.1.2.1.2.2";
 const std::string IFXTABLE_OID = "1.3.6.1.2.1.31.1.1";
@@ -76,6 +81,7 @@ struct Arp {
 
 struct InOutRate {
   std::string ifIndex{};
+  std::string name;
   long recvBitsPerSec{0};
   long sentBitsPerSec{0};
   long recvPktsPerSec{0};
@@ -307,25 +313,30 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
       opt.oid = IFXTABLE_OID;
       
       auto ts1 = snmp_table(opt, ifxtable1);
+      auto start = get_time::now();
+      
       if (ts1 == 0) return rc;
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      
+    
       auto ts2 = snmp_table(opt, ifxtable2);
-      
+      auto end = get_time::now();
       if (ts2 == 0) return rc;
       if (ts1 != ts2) return rc;
       
+      auto diff = std::chrono::duration_cast<ms>(end - start).count();
+      
+      std::cout <<diff;
       for (size_t i = 0; i != ts1; ++i) {
         auto key = ifxtable2[i]["_fake_index"].get<std::string>();
         InOutRate rate;
         rate.ifIndex = key;
+        rate.name = ifxtable2[i]["ifName"].get<std::string>();
         
         if( not ifxtable2[i]["ifHCInOctets"].is_null()) {
-          rate.recvBitsPerSec = ifxtable2[i]["ifHCInOctets"].get<long>() - ifxtable1[i]["ifHCInOctets"].get<long>();
+          rate.recvBitsPerSec = (ifxtable2[i]["ifHCInOctets"].get<long>() - ifxtable1[i]["ifHCInOctets"].get<long>())*1000/diff;
         }
         
         if(not ifxtable2[i]["ifHCOutOctets"].is_null()) {
-          rate.sentBitsPerSec = ifxtable2[i]["ifHCOutOctets"].get<long>() - ifxtable1[i]["ifHCOutOctets"].get<long>();
+          rate.sentBitsPerSec = (ifxtable2[i]["ifHCOutOctets"].get<long>() - ifxtable1[i]["ifHCOutOctets"].get<long>())*1000/diff;
         }
         
         if (not bits_only) {
@@ -344,7 +355,7 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
             recvPkts1 += ifxtable1[i]["ifHCInBroadcastPkts"].get<long>();
           }
           
-          rate.recvBitsPerSec = recvPkts2 - recvPkts1;
+          rate.recvBitsPerSec = (recvPkts2 - recvPkts1)*1000/diff;
           
           
           long sentPkts2{0},sentPkts1{0};
@@ -360,7 +371,7 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
             sentPkts2 += ifxtable2[i]["ifHCOutBroadcastPkts"].get<long>();
             sentPkts1 += ifxtable1[i]["ifHCOutBroadcastPkts"].get<long>();
           }
-          rate.sentPktsPerSec = sentPkts2 - sentPkts1;
+          rate.sentPktsPerSec = (sentPkts2 - sentPkts1)*1000/diff;
         }
         
         rates[key] = rate;
@@ -407,14 +418,32 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
           rate = rates[index];
         }
         
-        auto ifSpeed = iftable[i]["ifSpeed"].get<long>();
+//        auto mac = iftable[i]["ifPhysAddress"].get<std::string>();
+//        
+//        if (mac != "") {
+          auto ifSpeed = iftable[i]["ifSpeed"].get<long>();
+          
+          
+          inout_util.first = rate.recvBitsPerSec*100.0/ifSpeed;
+          inout_util.second = rate.sentBitsPerSec*100.0/ifSpeed;
+        
+        if(inout_util.first > 100 || inout_util.second > 100) {
+          printf("\n-------------------------\n");
+          printf("index: %s current ifSpeed: %ld \n",index.c_str(),ifSpeed);
+          
+          
+          printf("recv: %f send: %f \n",inout_util.first,inout_util.second);
+          printf("\n-------------------------\n");
+          
+          
+          
+        }
+          
+          
+          util_pairs.push_back(inout_util);
+        //}
         
         
-        inout_util.first = rate.recvBitsPerSec*100.0/ifSpeed;
-        inout_util.second = rate.sentBitsPerSec*100.0/ifSpeed;
-        
-        
-        util_pairs.push_back(inout_util);
       }
     }
     
@@ -473,6 +502,7 @@ size_t SwitchFetcher::get_intf_info_list(SwitchInfo::TYPE type,std::vector<Inter
           info.recvBitsPerSec = rate.recvBitsPerSec;
           info.sentPktsPerSec = rate.sentPktsPerSec;
           info.recvPktsPerSec = rate.recvPktsPerSec;
+          info.name = rate.name;
           
         }
         

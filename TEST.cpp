@@ -17,11 +17,11 @@ int main() {
   
   string pw = "Test";
   
-  ip = "202.181.250.36";
+  ip = "202.181.254.36";
   
   pw = "chinalink";
   
-  SwitchInfo::TYPE  t =  SwitchInfo::H3C;  // only support H3C,RUIJIE,CISCO
+  SwitchInfo::TYPE  t =  SwitchInfo::CISCO;  // only support H3C,RUIJIE,CISCO
   
   
   SwitchInfo info;
