@@ -17,6 +17,10 @@ const std::string IFXTABLE_OID = "1.3.6.1.2.1.31.1.1";
 const std::string IP_ADDR_TABLE_OID = ".1.3.6.1.2.1.4.20";
 const std::string IPNET_TO_MEDIA_TABLE_OID = ".1.3.6.1.2.1.4.22";
 
+const std::string IF_IN_OCTETS_OID = "1.3.6.1.2.1.2.2.1.10";
+const std::string IF_OUT_OCTETS_OID = "1.3.6.1.2.1.2.2.1.16";
+const std::string IF_SPEED_OID = "1.3.6.1.2.1.2.2.1.5";
+
 const std::string RUIJIE_MEMPOOL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35";
 const std::string RUIJIE_MEMUTIL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.1";
 
@@ -159,6 +163,7 @@ protected:
   bool get_double_with_one_oid(const std::string& oid, double& usage);
   size_t get_intf_inout_rate(std::map<std::string,InOutRate>&,const bool bits_only = true);
   
+  size_t get_intf_rate_map(std::map<std::string,InOutRate>&);
   
   size_t get_arp_table(std::map<std::string,Arp>& arps);
   
@@ -301,6 +306,60 @@ bool SwitchFetcher::get_double_with_one_oid(const std::string& oid,double& usage
   return ret;
 }
 
+
+size_t SwitchFetcher::get_intf_rate_map(std::map<std::string,InOutRate>&) {
+  size_t rc = 0;
+
+  try {
+    if (_ss) {
+      SNMPOPT opt(_ss);
+      nlohmann::json ifxtable1{}, ifxtable2{};
+      
+      opt.oid = IFXTABLE_OID;
+      
+      auto ts1 = snmp_table(opt, ifxtable1);
+      auto start = get_time::now();
+      
+      if (ts1 == 0) return rc;
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      auto ts2 = snmp_table(opt, ifxtable2);
+      auto end = get_time::now();
+      if (ts2 == 0) return rc;
+      if (ts1 != ts2) return rc;
+      
+      auto diff = std::chrono::duration_cast<ms>(end - start).count();
+      
+      std::cout <<diff;
+      for (size_t i = 0; i != ts1; ++i) {
+        auto key = ifxtable2[i]["_fake_index"].get<std::string>();
+        InOutRate rate;
+        rate.ifIndex = key;
+        rate.name = ifxtable2[i]["ifName"].get<std::string>();
+        
+        if( not ifxtable2[i]["ifHCInOctets"].is_null()) {
+          rate.recvBitsPerSec = (ifxtable2[i]["ifHCInOctets"].get<long>() - ifxtable1[i]["ifHCInOctets"].get<long>())*1000/diff;
+        }
+        
+        if(not ifxtable2[i]["ifHCOutOctets"].is_null()) {
+          rate.sentBitsPerSec = (ifxtable2[i]["ifHCOutOctets"].get<long>() - ifxtable1[i]["ifHCOutOctets"].get<long>())*1000/diff;
+        }
+        
+        
+      rc = ts1;
+      
+      }
+    }
+  } catch (const std::exception& ex) {
+    rc = 0;
+  }
+  
+  return rc;
+  
+  
+}
+
+
+
 size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates,const bool bits_only) {
   
   size_t rc = 0;
@@ -316,7 +375,7 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
       auto start = get_time::now();
       
       if (ts1 == 0) return rc;
-    
+    std::this_thread::sleep_for(std::chrono::seconds(1));
       auto ts2 = snmp_table(opt, ifxtable2);
       auto end = get_time::now();
       if (ts2 == 0) return rc;
@@ -423,9 +482,14 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
 //        if (mac != "") {
           auto ifSpeed = iftable[i]["ifSpeed"].get<long>();
           
-          
-          inout_util.first = rate.recvBitsPerSec*100.0/ifSpeed;
-          inout_util.second = rate.sentBitsPerSec*100.0/ifSpeed;
+        if (ifSpeed != 0) {
+          inout_util.first = rate.recvBitsPerSec*800.0/ifSpeed;
+          inout_util.second = rate.sentBitsPerSec*800.0/ifSpeed;
+        } else {
+          inout_util.first = 0;
+          inout_util.second = 0;
+        }
+        
         
         if(inout_util.first > 100 || inout_util.second > 100) {
           printf("\n-------------------------\n");

@@ -18,6 +18,13 @@
 const std::string ifPhysAddress = "1.3.6.1.2.1.2.2.1.6";
 const std::string ipNetToMediaPhysAddress = ".1.3.6.1.2.1.4.22.1.2";
 
+inline static void to_index_name(std::string& name) {
+  auto pos = name.find(".");
+  if(pos != name.npos) {
+    name = name.substr(pos +1);
+  }
+}
+
 static bool match_phys_address(const std::string& oid) {
   return (oid.find(ifPhysAddress) != oid.npos || oid.find(ipNetToMediaPhysAddress) != oid.npos);
 }
@@ -504,6 +511,24 @@ size_t snmp_table(const SNMPOPT& opt, nlohmann::json& table) {
     table = columns; // ret <=0; -1 == timeout
   }
 
+  return ret;
+}
+
+size_t snmp_map(const SNMPOPT& opt, nlohmann::json & jmap) {
+  
+  nlohmann::json columns;
+  auto ret = snmp_bulkwalk(opt,columns);
+  jmap.clear();
+  if(ret > 0) {
+    for(auto it = columns.cbegin(); it != columns.end(); ++it) {
+      auto index = std::string(it.key());
+      to_index_name(index);
+      jmap[index] = it.value();
+    }
+    ret = jmap.size();
+  } else {
+    jmap = columns;
+  }
   return ret;
 }
 
