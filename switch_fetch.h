@@ -9,7 +9,6 @@
 #include <vector>
 
 
-
 struct SwitchInfo {
   
   enum TYPE {
@@ -41,6 +40,20 @@ struct InterfaceInfo {
   
 };
 
+int get_switch_cpuutil(const std::string& ip,
+                       const std::string& community,
+                       const SwitchInfo::TYPE type,
+                       double& usage);
+
+int get_switch_memutil(const std::string& ip,
+                       const std::string& community,
+                       const SwitchInfo::TYPE type,
+                       double& usage);
+
+int get_switch_temperature(const std::string& ip,
+                       const std::string& community,
+                       const SwitchInfo::TYPE type,
+                       double& temp);
 
 //if get success return 0;
 int get_switch_info(const std::string& ip,

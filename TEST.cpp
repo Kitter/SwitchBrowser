@@ -4,7 +4,6 @@
 
 
 #include "switch_fetch.h"
-#include "snmp_utils.h"
 #include <iostream>
 #include <thread>
 
@@ -17,11 +16,11 @@ int main() {
   
   string pw = "Test";
   
-  ip = "202.181.254.36";
+//  ip = "202.181.254.36";
+//
+//  pw = "chinalink";
   
-  pw = "chinalink";
-  
-  SwitchInfo::TYPE  t =  SwitchInfo::CISCO;  // only support H3C,RUIJIE,CISCO
+  SwitchInfo::TYPE  t =  SwitchInfo::RUIJIE;  // only support H3C,RUIJIE,CISCO
   
   
   SwitchInfo info;
@@ -31,6 +30,10 @@ int main() {
   
   while (++i < 10) {
     cout << "-----------------------------------" << endl;
+    double usage;
+    if(get_switch_cpuutil(ip,pw,t,usage) == 0) cout << "ruijie cpuutil: " << usage << endl;
+    if(get_switch_memutil(ip,pw,t,usage) == 0) cout << "ruijie memuti: " << usage << endl;
+    if(get_switch_temperature(ip,pw,t,usage) == 0) cout << "ruijie te: " << usage << endl;
     if (get_switch_info(ip, pw, t, info) == 0) {
       cout << info.ip << "   " << info.cpuUtil << "   " << info.memUtil << "   "  << info.sysUpTime ;
       cout << "   "  << info.intfHighInUtil << "   "  << info.intfHighOutUtil << endl;

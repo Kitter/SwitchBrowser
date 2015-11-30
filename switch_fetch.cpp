@@ -7,6 +7,7 @@
 #include <cassert>
 #include <thread>
 #include <chrono>
+#include <mutex>
 
 using ms = std::chrono::milliseconds;
 using get_time = std::chrono::steady_clock;
@@ -21,6 +22,7 @@ const std::string IF_IN_OCTETS_OID = "1.3.6.1.2.1.2.2.1.10";
 const std::string IF_OUT_OCTETS_OID = "1.3.6.1.2.1.2.2.1.16";
 const std::string IF_SPEED_OID = "1.3.6.1.2.1.2.2.1.5";
 
+const std::string RUIJIE_TEMP_OID = ".1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.5.1";
 const std::string RUIJIE_MEMPOOL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35";
 const std::string RUIJIE_MEMUTIL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.1";
 
@@ -90,6 +92,7 @@ struct InOutRate {
   long sentBitsPerSec{0};
   long recvPktsPerSec{0};
   long sentPktsPerSec{0};
+  long ifHighSpeed{0};
 };
 
 
@@ -147,8 +150,8 @@ public:
     snmp_close(&_session);
     
   }
-  
-  
+
+  bool get_temperature(SwitchInfo::TYPE type, double& temp);
   bool get_cpu_usage(SwitchInfo::TYPE type, double& usage);
   bool get_mem_usage(SwitchInfo::TYPE type, double& usage);
   bool get_sys_uptime(long& uptime);
@@ -195,7 +198,26 @@ std::map<std::string,std::string> SwitchFetcher::_cached_h3c_index;
 std::mutex SwitchFetcher::_mutex;
 
 
+bool SwitchFetcher::get_temperature(SwitchInfo::TYPE type, double& temp) {
+  bool ret = false;
+  switch (type) {
+    case SwitchInfo::H3C: {
+      //ret = get_double_with_one_oid(H3C_CPUUTIL_OID, usage);
+      break;
+    }
 
+    case SwitchInfo::RUIJIE:
+      ret = get_double_with_one_oid(RUIJIE_TEMP_OID, temp);
+      break;
+    case SwitchInfo::CISCO:
+      //ret = get_double_with_one_oid(CISCO_CPUUTIL_OID, usage);
+      break;
+
+    default:
+      break;
+  }
+  return ret;
+}
 
 bool SwitchFetcher::get_cpu_usage(SwitchInfo::TYPE type, double& usage) {
   bool ret = false;
@@ -244,8 +266,9 @@ bool SwitchFetcher::get_mem_usage(SwitchInfo::TYPE type, double& usage) {
                 auto fre = row["ciscoMemoryPoolFree"].get<long>();
                 
                 auto used = row["ciscoMemoryPoolUsed"].get<long>();
-                
-                usage = used*100.0/(used + fre);
+
+                if(fre != 0 || used != 0)
+                  usage = used*100.0/(used + fre);
                 ret = true;
                 break;
               }
@@ -389,6 +412,7 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
         InOutRate rate;
         rate.ifIndex = key;
         rate.name = ifxtable2[i]["ifName"].get<std::string>();
+        rate.ifHighSpeed = ifxtable2[i]["ifHighSpeed"].get<long>() * 1000 * 1000;
         
         if( not ifxtable2[i]["ifHCInOctets"].is_null()) {
           rate.recvBitsPerSec = (ifxtable2[i]["ifHCInOctets"].get<long>() - ifxtable1[i]["ifHCInOctets"].get<long>())*1000/diff;
@@ -480,11 +504,13 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
 //        auto mac = iftable[i]["ifPhysAddress"].get<std::string>();
 //        
 //        if (mac != "") {
-          auto ifSpeed = iftable[i]["ifSpeed"].get<long>();
+        if(rate.ifHighSpeed == 0) {
+          rate.ifHighSpeed = iftable[i]["ifSpeed"].get<long>();
+        }
           
-        if (ifSpeed != 0) {
-          inout_util.first = rate.recvBitsPerSec*800.0/ifSpeed;
-          inout_util.second = rate.sentBitsPerSec*800.0/ifSpeed;
+        if (rate.ifHighSpeed != 0) {
+          inout_util.first = rate.recvBitsPerSec*800.0/rate.ifHighSpeed;
+          inout_util.second = rate.sentBitsPerSec*800.0/rate.ifHighSpeed;
         } else {
           inout_util.first = 0;
           inout_util.second = 0;
@@ -493,21 +519,17 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
         
         if(inout_util.first > 100 || inout_util.second > 100) {
           printf("\n-------------------------\n");
-          printf("index: %s current ifSpeed: %ld \n",index.c_str(),ifSpeed);
+          printf("index: %s current ifSpeed: %ld \n",index.c_str(),rate.ifHighSpeed);
           
           
           printf("recv: %f send: %f \n",inout_util.first,inout_util.second);
           printf("\n-------------------------\n");
           
-          
-          
         }
           
-          
+        if(inout_util.first < 100 && inout_util.second < 100)
           util_pairs.push_back(inout_util);
-        //}
-        
-        
+
       }
     }
     
@@ -589,6 +611,56 @@ size_t SwitchFetcher::get_intf_info_list(SwitchInfo::TYPE type,std::vector<Inter
   return rc;
   
   
+}
+
+
+int get_switch_cpuutil(const std::string& ip,
+                       const std::string& community,
+                       const SwitchInfo::TYPE type,
+                       double& usage) {
+  int ret = 1;
+
+  try {
+
+    SwitchFetcher fetcher(ip,community);
+    if (fetcher.get_cpu_usage(type, usage)) { ret = 0; }
+  } catch (const std::exception& ex) {
+    ret = 1;
+  }
+  return ret;
+}
+
+int get_switch_memutil(const std::string& ip,
+                       const std::string& community,
+                       const SwitchInfo::TYPE type,
+                       double& usage) {
+  int ret = 1;
+
+  try {
+
+    SwitchFetcher fetcher(ip,community);
+    if (fetcher.get_mem_usage(type, usage)) { ret = 0; }
+  } catch (const std::exception& ex) {
+    ret = 1;
+  }
+  return ret;
+}
+
+int get_switch_temperature(const std::string& ip,
+                           const std::string& community,
+                           const SwitchInfo::TYPE type,
+                           double& temp){
+
+  int ret = 1;
+
+  try {
+
+    SwitchFetcher fetcher(ip,community);
+    if (fetcher.get_temperature(type, temp)) { ret = 0; }
+  } catch (const std::exception& ex) {
+    ret = 1;
+  }
+  return ret;
 }
 
 

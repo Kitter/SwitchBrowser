@@ -73,3 +73,11 @@ set(TEST_SRCS
 
 add_executable(TEST ${TEST_SRCS})
 target_link_libraries(TEST netsnmp)
+
+set(SNMP_SRCS
+    snmp_utils.cpp
+    SNMPTEST.cpp
+)
+
+add_executable(SNMPTEST ${SNMP_SRCS})
+target_link_libraries(SNMPTEST netsnmp)
