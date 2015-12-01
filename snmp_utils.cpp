@@ -153,7 +153,7 @@ static size_t find_in_vec(const std::vector<std::string>& vec, const std::string
   if(found) return i; else return name.npos;
 }
 
-static size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table) {
+size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table) {
 
   if(columns.size() == 1) {
     table = columns;
@@ -514,22 +514,5 @@ size_t snmp_table(const SNMPOPT& opt, nlohmann::json& table) {
   return ret;
 }
 
-size_t snmp_map(const SNMPOPT& opt, nlohmann::json & jmap) {
-  
-  nlohmann::json columns;
-  auto ret = snmp_bulkwalk(opt,columns);
-  jmap.clear();
-  if(ret > 0) {
-    for(auto it = columns.cbegin(); it != columns.end(); ++it) {
-      auto index = std::string(it.key());
-      to_index_name(index);
-      jmap[index] = it.value();
-    }
-    ret = jmap.size();
-  } else {
-    jmap = columns;
-  }
-  return ret;
-}
 
 

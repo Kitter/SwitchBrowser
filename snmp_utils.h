@@ -59,5 +59,5 @@ int snmp_walk(const SNMPOPT &opt, nlohmann::json &columns);
 int snmp_bulkwalk(const SNMPOPT &opt, nlohmann::json &columns);
 int snmp_get(const SNMPOPT &opt, nlohmann::json &values);
 size_t snmp_table(const SNMPOPT&opt, nlohmann::json & table);
-
+size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table);
 
