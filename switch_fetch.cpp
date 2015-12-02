@@ -752,6 +752,8 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
         info.desc = table[i]["ifDescr"].get<std::string>();
 
         auto index = table[i]["_fake_index"].get<std::string>();
+        
+        info.index = atol(index.c_str());
 
         info.mac = table[i]["ifPhysAddress"].get<std::string>();
 
@@ -764,7 +766,7 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
 
           info.ip = ipaddrs[index].ipAdEntAddr;
           info.mask = ipaddrs[index].ipAdEntNetMask;
-          info.index = atol(index.c_str());
+
         }
 
 
@@ -794,7 +796,7 @@ size_t SwitchFetcher::get_intf_rate_info(SwitchInfo::TYPE type,std::vector<Inter
       auto ts1 = get_intf_rate_table(type,table1);
       auto start = get_time::now();
       if (ts1 == 0) return rc;
-      
+
       std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
       auto ts2 = get_intf_rate_table(type,table2);
@@ -849,9 +851,9 @@ size_t SwitchFetcher::get_intf_rate_info(SwitchInfo::TYPE type,std::vector<Inter
         }
         info.sentPktsPerSec = (sentPkts2 - sentPkts1)*1000.0/diff;
 
-        
+
         info.index = atol(index.c_str());
-        
+
         rate_info.push_back(info);
         ++rc;
       }
