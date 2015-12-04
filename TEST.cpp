@@ -12,7 +12,7 @@ using namespace std;
 
 int main() {
   
-  string ip = "210.73.204.7";
+  string ip = "210.73.204.6";
   
   string pw = "Test";
   
@@ -20,7 +20,7 @@ int main() {
 //
 //  pw = "cnlink";
   
-  SwitchInfo::TYPE  t =  SwitchInfo::CISCO;  // only support H3C,RUIJIE,CISCO
+  SwitchInfo::TYPE  t =  SwitchInfo::RUIJIE;  // only support H3C,RUIJIE,CISCO
   
   
   SwitchInfo info;

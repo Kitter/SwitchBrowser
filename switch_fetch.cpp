@@ -19,8 +19,10 @@ using get_time = std::chrono::steady_clock;
 
 // base info
 const std::string IF_DESCR_OID = ".1.3.6.1.2.1.2.2.1.2";
+const std::string IF_ALIAS_OID = "1.3.6.1.2.1.31.1.1.1.18";
 const std::string IF_PHYS_ADDR_OID = ".1.3.6.1.2.1.2.2.1.6";
 const std::string IF_ADMIN_OID = ".1.3.6.1.2.1.2.2.1.7";
+const std::string IF_OPER_OID = ".1.3.6.1.2.1.2.2.1.8";
 const std::string IFX_NAME_OID = "1.3.6.1.2.1.31.1.1.1.1";
 const std::string IP_ADDR_TABLE_OID = ".1.3.6.1.2.1.4.20";
 
@@ -134,13 +136,16 @@ namespace  {
 
       std::string strDBPath(szFilePath);
       // strDBPath += "local.db";
+	  std::string strbase = strDBPath;
       std::string strcisco = strDBPath;
       std::string strruijie = strDBPath;
       std::string strh3c = strDBPath;
 
+	  strbase += "mibs\\base-mibs";
       strcisco += "mibs\\cisco-mibs";
       strruijie += "mibs\\ruijie-mibs";
       strh3c += "mibs\\h3c-mibs";
+	  add_mibdir(strbase.c_str());
       add_mibdir(strcisco.c_str());
       add_mibdir(strruijie.c_str());
       add_mibdir(strh3c.c_str());
@@ -218,7 +223,7 @@ public:
 
 protected:
 
-  size_t get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table);
+  size_t get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table,bool first_time);
 
   bool get_double_with_one_oid(const std::string& oid, double& usage);
 
@@ -446,11 +451,22 @@ bool SwitchFetcher::get_double_with_one_oid(const std::string& oid,double& usage
 //      const std::string IF_OUT_MCAST_OID = "1.3.6.1.2.1.31.1.1.1.12";
 //      const std::string IF_OUT_BCAST_OID = "1.3.6.1.2.1.31.1.1.1.13";
 
-size_t SwitchFetcher::get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table) {
+size_t SwitchFetcher::get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table,bool first_time) {
   size_t rc = 0;
   try {
     SNMPOPT opt(_ss);
     nlohmann::json subtree{};
+
+    if(first_time) {
+      opt.oid = IF_ADMIN_OID;
+      rc = snmp_bulkwalk(opt, subtree);
+      if (rc == 0) return rc;
+
+      opt.oid = IF_OPER_OID;
+      rc = snmp_bulkwalk(opt, subtree);
+      if (rc == 0) return rc;
+    }
+
     opt.oid = IF_IN_OCT_OID;
     rc = snmp_bulkwalk(opt, subtree);
     if (rc == 0) {return rc;}
@@ -724,15 +740,11 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
       auto ts = snmp_bulkwalk(opt, subtree);
       if (ts == 0) return rc;
 
-      opt.oid = IF_ADMIN_OID;
-      ts = snmp_bulkwalk(opt, subtree);
-      if (ts == 0) return rc;
-
       opt.oid = IF_PHYS_ADDR_OID;
       ts = snmp_bulkwalk(opt, subtree);
       if (ts == 0) return rc;
 
-      opt.oid = IF_DESCR_OID;
+      opt.oid = IF_ALIAS_OID;
       ts = snmp_bulkwalk(opt, subtree);
       if (ts == 0) return rc;
 
@@ -748,16 +760,14 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
 
         InterfaceBaseInfo info;
 
-
-        info.desc = table[i]["ifDescr"].get<std::string>();
+        info.desc = table[i]["ifAlias"].get<std::string>();
 
         auto index = table[i]["_fake_index"].get<std::string>();
-        
-        info.index = atol(index.c_str());
+		info.index = atol(index.c_str());
 
         info.mac = table[i]["ifPhysAddress"].get<std::string>();
 
-        info.status = ifAdminStatus2str(table[i]["ifAdminStatus"].get<int>());
+
         info.name = table[i]["ifName"].get<std::string>();
 
 
@@ -766,9 +776,7 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
 
           info.ip = ipaddrs[index].ipAdEntAddr;
           info.mask = ipaddrs[index].ipAdEntNetMask;
-
         }
-
 
         base_info.push_back(info);
         ++rc;
@@ -793,13 +801,13 @@ size_t SwitchFetcher::get_intf_rate_info(SwitchInfo::TYPE type,std::vector<Inter
       SNMPOPT opt(_ss);
       nlohmann::json table2{}, table1{};
 
-      auto ts1 = get_intf_rate_table(type,table1);
+      auto ts1 = get_intf_rate_table(type,table1,true);
       auto start = get_time::now();
       if (ts1 == 0) return rc;
+      
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-      auto ts2 = get_intf_rate_table(type,table2);
+      auto ts2 = get_intf_rate_table(type,table2,false);
       auto end = get_time::now();
       if (ts2 != ts1) return rc;
       auto diff = std::chrono::duration_cast<ms>(end - start).count();
@@ -807,7 +815,8 @@ size_t SwitchFetcher::get_intf_rate_info(SwitchInfo::TYPE type,std::vector<Inter
       for (size_t i = 0; i != ts2; ++i) {
 
         InterfaceRateInfo info;
-
+        info.admin_status = ifAdminStatus2str(table1[i]["ifAdminStatus"].get<int>());
+        info.oper_status = ifAdminStatus2str(table1[i]["ifOperStatus"].get<int>());
         //get ip_table info
         auto index = table2[i]["_fake_index"].get<std::string>();
 
@@ -852,8 +861,9 @@ size_t SwitchFetcher::get_intf_rate_info(SwitchInfo::TYPE type,std::vector<Inter
         info.sentPktsPerSec = (sentPkts2 - sentPkts1)*1000.0/diff;
 
 
+        
         info.index = atol(index.c_str());
-
+        
         rate_info.push_back(info);
         ++rc;
       }

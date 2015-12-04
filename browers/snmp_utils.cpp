@@ -3,32 +3,20 @@
 //
 
 
-
 #include "snmp_utils.h"
+#include <arpa/inet.h>
 #include <set>
 #include <net-snmp/types.h>
 
-#ifdef _WIN32
-#include <WinSock2.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
 
-#include <arpa/inet.h>
 
-#endif
+
 
 //sometimes the octet string contains all printable charachters and this produces unexpected output when it is
 //not translated.
 
 const std::string ifPhysAddress = "1.3.6.1.2.1.2.2.1.6";
 const std::string ipNetToMediaPhysAddress = ".1.3.6.1.2.1.4.22.1.2";
-
-inline static void to_index_name(std::string& name) {
-  auto pos = name.find(".");
-  if(pos != name.npos) {
-    name = name.substr(pos +1);
-  }
-}
 
 static bool match_phys_address(const std::string& oid) {
   return (oid.find(ifPhysAddress) != oid.npos || oid.find(ipNetToMediaPhysAddress) != oid.npos);
@@ -158,7 +146,7 @@ static size_t find_in_vec(const std::vector<std::string>& vec, const std::string
   if(found) return i; else return name.npos;
 }
 
-size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table) {
+static size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table) {
 
   if(columns.size() == 1) {
     table = columns;
@@ -282,7 +270,7 @@ int snmp_bulkwalk(const SNMPOPT &opt, nlohmann::json &subtree) {
   std::string msg{};
   snmp_pdu *pdu;
   snmp_pdu *response;
-  variable_list *vars=NULL;
+  variable_list *vars;
 
   oid name[MAX_OID_LEN] = {0};
   size_t name_length = MAX_OID_LEN;
@@ -396,7 +384,7 @@ int snmp_walk(const SNMPOPT &opt, nlohmann::json &subtree) {
   std::string msg{};
   snmp_pdu *pdu;
   snmp_pdu *response;
-  variable_list *vars=NULL;
+  variable_list *vars;
 
   oid name[MAX_OID_LEN] = {0};
   size_t name_length = MAX_OID_LEN;
@@ -518,6 +506,5 @@ size_t snmp_table(const SNMPOPT& opt, nlohmann::json& table) {
 
   return ret;
 }
-
 
 

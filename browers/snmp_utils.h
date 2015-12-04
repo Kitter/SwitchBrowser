@@ -29,11 +29,7 @@ public:
       snmp_sess_init(&session);
       session.version = SNMP_VERSION_2c;
       //session.peername = peer.c_str();
-#ifdef _WIN32
-      session.peername = _strdup(peer.c_str());
-#else
       session.peername = strdup(peer.c_str());
-#endif
       session.community = (u_char *) pwd.c_str();
       session.community_len = pwd.length();
       session.timeout = 1000 * 500;
@@ -63,5 +59,5 @@ int snmp_walk(const SNMPOPT &opt, nlohmann::json &columns);
 int snmp_bulkwalk(const SNMPOPT &opt, nlohmann::json &columns);
 int snmp_get(const SNMPOPT &opt, nlohmann::json &values);
 size_t snmp_table(const SNMPOPT&opt, nlohmann::json & table);
-size_t columns_to_table(const nlohmann::json& columns, nlohmann::json& table);
+
 

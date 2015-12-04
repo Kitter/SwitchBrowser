@@ -47,7 +47,7 @@ struct InterfaceBaseInfo {
   std::string desc{};
   std::string mask{};
   std::string mac{};
-  std::string status;
+
   
 };
 
@@ -57,6 +57,8 @@ struct InterfaceRateInfo {
   double sentBitsPerSec{0.0};
   double recvPktsPerSec{0.0};
   double sentPktsPerSec{0.0};
+  std::string admin_status{};
+  std::string oper_status{};
   
 };
 
