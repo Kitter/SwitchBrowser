@@ -26,8 +26,15 @@ int main() {
   SwitchInfo info;
   std::vector<InterfaceBaseInfo> base_info;
   std::vector<InterfaceRateInfo> rate_info;
+  std::vector<Arp> arp_info;
+  std::vector<Dot1dTpFdbTable> dots_info;
+
   if(get_interfacebase_info(ip, pw, t, base_info) == 0) cout << "get base info success " << endl;
- if(get_interfacerate_info(ip, pw, t, rate_info) == 0) cout << "get rate info success " << endl;
+  if(get_interfacerate_info(ip, pw, t, rate_info) == 0) cout << "get rate info success " << endl;
+
+
+  if(get_arp_list(ip, pw, t, arp_info) == 0) cout << "get arp_info info success " << endl;
+  if(get_dot1_list(ip, pw, t, dots_info) == 0) cout << "get dots_info info success " << endl;
   
   int i = 0;
   

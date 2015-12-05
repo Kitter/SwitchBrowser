@@ -1370,6 +1370,7 @@ RuijieSystemMultipleTemperatureEntry ::=
   }
 
 ruijieSystemMultipleTemperatureDeviceIndex OBJECT-TYPE
+
     SYNTAX        Integer32
     MAX-ACCESS    read-only
     STATUS        current

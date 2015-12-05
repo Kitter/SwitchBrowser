@@ -25,20 +25,6 @@ struct SwitchInfo {
   
 };
 
-struct InterfaceInfo {
-  long index{ 0 };
-  std::string name{};
-  std::string ip{};
-  std::string desc{};
-  std::string mask{};
-  std::string mac{};
-  std::string status;
-  double recvBitsPerSec{0.0};
-  double sentBitsPerSec{0.0};
-  double recvPktsPerSec{0.0};
-  double sentPktsPerSec{0.0};
-  
-};
 
 struct InterfaceBaseInfo {
   long index{ 0 };
@@ -62,6 +48,20 @@ struct InterfaceRateInfo {
   
 };
 
+struct Arp {
+  long ipNetToMediaIfIndex{0};
+  std::string ipNetToMediaPhysAddress{};
+  std::string ipNetToMediaNetAddress{};
+  long ipNetToMediaType{};
+  std::string index{};
+};
+
+struct Dot1dTpFdbTable {
+  std::string macAddr{};
+  int port{0};
+  int status{0};
+  std::string index{};
+};
 
 
 int get_switch_cpuutil(const std::string& ip,
@@ -89,11 +89,6 @@ int get_switch_info(const std::string& ip,
                     const SwitchInfo::TYPE type,
                     SwitchInfo& info);
 
-//if get success return 0;
-int get_interface_info(const std::string& ip,
-                       const std::string& community,
-                       const SwitchInfo::TYPE type,
-                       std::vector<InterfaceInfo>& if_list);
 
 //if get success return 0;
 int get_interfacebase_info(const std::string& ip,
@@ -108,6 +103,15 @@ int get_interfacerate_info(const std::string& ip,
                        std::vector<InterfaceRateInfo>& rate_info);
 
 
+int get_arp_list(const std::string& ip,
+                           const std::string& community,
+                           const SwitchInfo::TYPE type,
+                           std::vector<Arp>& arp_list);
+
+int get_dot1_list(const std::string& ip,
+                 const std::string& community,
+                 const SwitchInfo::TYPE type,
+                 std::vector<Dot1dTpFdbTable>& dot_list);
 
 
 #endif //SWITCHBROWSER_SWITCH_FETCH_H

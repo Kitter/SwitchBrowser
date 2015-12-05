@@ -11,7 +11,7 @@ using namespace std;
 
 int main() {
 
-  string ip = "210.73.204.6";
+  string ip = "210.73.204.7";
 
   string pw = "Test";
 
@@ -19,12 +19,12 @@ int main() {
 //
 //  pw = "chinalink";
   init_snmp("SNMPTEST Fetch");
-  add_mibdir("../mibs/cisco-mibs");
-  add_mibdir("../mibs/ruijie-mibs");
-  add_mibdir("../mibs/h3c-mibs");
+  //add_mibdir("../mibs/cisco-mibs");
+  //add_mibdir("../mibs/ruijie-mibs");
+  //add_mibdir("../mibs/h3c-mibs");
   read_all_mibs();
   printf("init snmp and loading all mibs.\r\n");
-  const std::string RUIJIE_SYSPOOL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.1";
+  const std::string RUIJIE_SYSPOOL_OID = ".1.3.6.1.2.1.17.4.3";
   Session sess(ip,pw);
   if(sess.get_session()) {
     SNMPOPT opt(sess.get_session());

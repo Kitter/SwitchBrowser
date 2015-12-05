@@ -22,6 +22,7 @@
 
 const std::string ifPhysAddress = "1.3.6.1.2.1.2.2.1.6";
 const std::string ipNetToMediaPhysAddress = ".1.3.6.1.2.1.4.22.1.2";
+const std::string dotPhysAddres = ".1.3.6.1.2.1.17.4.3.1.1";
 
 inline static void to_index_name(std::string& name) {
   auto pos = name.find(".");
@@ -31,7 +32,9 @@ inline static void to_index_name(std::string& name) {
 }
 
 static bool match_phys_address(const std::string& oid) {
-  return (oid.find(ifPhysAddress) != oid.npos || oid.find(ipNetToMediaPhysAddress) != oid.npos);
+  return (oid.find(ifPhysAddress) != oid.npos ||
+      oid.find(ipNetToMediaPhysAddress) != oid.npos ||
+      oid.find(dotPhysAddres) != oid.npos);
 }
 
 static std::string snmp_hex_to_string(const struct variable_list *pvars) {

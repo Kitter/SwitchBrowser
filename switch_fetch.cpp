@@ -8,6 +8,7 @@
 #include <thread>
 #include <chrono>
 #include <mutex>
+#include <iostream>
 
 #ifdef _WIN32
 #include <WinSock2.h>
@@ -41,12 +42,12 @@ const std::string IF_TABLE_OID = ".1.3.6.1.2.1.2.2";
 const std::string IFXTABLE_OID = "1.3.6.1.2.1.31.1.1";
 
 const std::string IPNET_TO_MEDIA_TABLE_OID = ".1.3.6.1.2.1.4.22";
-
+const std::string DOT1D_TPFDB_OID = ".1.3.6.1.2.1.17.4.3"; //dot1dTpFdbAddress
 const std::string IF_IN_OCTETS_OID = "1.3.6.1.2.1.2.2.1.10";
 const std::string IF_OUT_OCTETS_OID = "1.3.6.1.2.1.2.2.1.16";
 const std::string IF_SPEED_OID = "1.3.6.1.2.1.2.2.1.5";
 
-const std::string RUIJIE_TEMP_OID = ".1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.5.1";
+const std::string RUIJIE_TEMP_OID = "1.3.6.1.4.1.4881.1.1.10.2.1.1.23.1.3";
 const std::string RUIJIE_MEMPOOL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35";
 const std::string RUIJIE_MEMUTIL_OID = ".1.3.6.1.4.1.4881.1.1.10.2.35.1.1.1.3.1";
 
@@ -65,32 +66,32 @@ const std::string HH3C_MEMUTIL_PRE_OID = "1.3.6.1.4.1.25506.2.6.1.1.1.1.8";
 
 const std::string SYS_UPTIME_OID = ".1.3.6.1.6.3.10.2.1.3.0";
 
-struct Interface {
-  // if table
-  long ifIndex;
-  std::string ifDescr;
-  long ifType;
-  long ifSpeed;
-  std::string ifPhysAddress;
-  long ifAdminStatus;
-  long ifOperStatus;
-  long ifLastChange;
-
-  //  long ifMtu;
-  //  long ifInOctets;
-  //  long ifInUcastPkts;
-  //  long ifInNUcastPkts;
-  //  long ifInDiscards;
-  //  long ifInErrors;
-  //  long ifInUnknownProtos;
-  //  long ifOutOctets;
-  //  long ifOutUcastPkts;
-  //  long ifOutNUcastPkts;
-  //  long ifOutDiscards;
-  //  long ifOutErrors;
-  //  long ifOutQLen;
-  //  std::string  ifSpecific;
-};
+//struct Interface {
+//  // if table
+//  long ifIndex;
+//  std::string ifDescr;
+//  long ifType;
+//  long ifSpeed;
+//  std::string ifPhysAddress;
+//  long ifAdminStatus;
+//  long ifOperStatus;
+//  long ifLastChange;
+//
+//  //  long ifMtu;
+//  //  long ifInOctets;
+//  //  long ifInUcastPkts;
+//  //  long ifInNUcastPkts;
+//  //  long ifInDiscards;
+//  //  long ifInErrors;
+//  //  long ifInUnknownProtos;
+//  //  long ifOutOctets;
+//  //  long ifOutUcastPkts;
+//  //  long ifOutNUcastPkts;
+//  //  long ifOutDiscards;
+//  //  long ifOutErrors;
+//  //  long ifOutQLen;
+//  //  std::string  ifSpecific;
+//};
 
 struct IpAddr {
   std::string ipAdEntAddr;
@@ -100,13 +101,6 @@ struct IpAddr {
   //  long ipAdEntReasmMaxSize;
 };
 
-
-struct Arp {
-  long ipNetToMediaIfIndex;
-  std::string ipNetToMediaPhysAddress;
-  std::string ipNetToMediaNetAddress;
-  long ipNetToMediaType;
-};
 
 
 struct InOutRate {
@@ -215,23 +209,21 @@ public:
 
   size_t get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std::pair<double, double>>& util_pairs);
 
-  size_t get_intf_info_list(SwitchInfo::TYPE type,std::vector<InterfaceInfo>& info_list);
-
   size_t get_intf_base_info(SwitchInfo::TYPE type,std::vector<InterfaceBaseInfo>& base_info);
 
   size_t get_intf_rate_info(SwitchInfo::TYPE type,std::vector<InterfaceRateInfo>& rate_info);
 
+  size_t get_arp_table(SwitchInfo::TYPE type,std::vector<Arp>& arp_list);
+
+  size_t get_dot_table(SwitchInfo::TYPE type,std::vector<Dot1dTpFdbTable>& dot_list);
+
 protected:
 
-  size_t get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table,bool first_time);
+  size_t get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table);
 
   bool get_double_with_one_oid(const std::string& oid, double& usage);
 
-  size_t get_intf_inout_rate(std::map<std::string,InOutRate>&,const bool bits_only = true);
-
-  size_t get_intf_rate_map(std::map<std::string,InOutRate>&);
-
-  size_t get_arp_table(std::map<std::string,Arp>& arps);
+  size_t get_intf_inout_rate(std::map<std::string,InOutRate>& rates,const bool bits_only);
 
   size_t get_ip_table(std::map<std::string,IpAddr>& ips);
 
@@ -369,133 +361,6 @@ bool SwitchFetcher::get_sys_uptime(long &uptime) {
   return ret;
 }
 
-
-
-bool SwitchFetcher::get_double_with_one_oid(const std::string& oid,double& usage) {
-  bool ret = false;
-
-  if (_ss) {
-
-    SNMPOPT opt(_ss);
-    opt.name = "usage";
-    opt.oid = oid;
-    nlohmann::json j;
-    if(snmp_get(opt,j) == 0) {
-      usage = j["usage"].get<double>();
-      ret = true;
-    }
-
-  }
-
-  return ret;
-}
-
-
-//size_t SwitchFetcher::get_intf_rate_map(std::map<std::string,InOutRate>&) {
-//  size_t rc = 0;
-//
-//  try {
-//    if (_ss) {
-//      SNMPOPT opt(_ss);
-//      nlohmann::json ifxtable1{}, ifxtable2{};
-//
-//      opt.oid = IFXTABLE_OID;
-//
-//      auto ts1 = snmp_table(opt, ifxtable1);
-//      auto start = get_time::now();
-//
-//      if (ts1 == 0) return rc;
-//      std::this_thread::sleep_for(std::chrono::seconds(1));
-//      auto ts2 = snmp_table(opt, ifxtable2);
-//      auto end = get_time::now();
-//      if (ts2 == 0) return rc;
-//      if (ts1 != ts2) return rc;
-//
-//      auto diff = std::chrono::duration_cast<ms>(end - start).count();
-//
-//      std::cout <<diff;
-//      for (size_t i = 0; i != ts1; ++i) {
-//        auto key = ifxtable2[i]["_fake_index"].get<std::string>();
-//        InOutRate rate;
-//        rate.ifIndex = key;
-//        rate.name = ifxtable2[i]["ifName"].get<std::string>();
-//
-//        if( not ifxtable2[i]["ifHCInOctets"].is_null()) {
-//          rate.recvBitsPerSec = (ifxtable2[i]["ifHCInOctets"].get<long>() - ifxtable1[i]["ifHCInOctets"].get<long>())*1000/diff;
-//        }
-//
-//        if(not ifxtable2[i]["ifHCOutOctets"].is_null()) {
-//          rate.sentBitsPerSec = (ifxtable2[i]["ifHCOutOctets"].get<long>() - ifxtable1[i]["ifHCOutOctets"].get<long>())*1000/diff;
-//        }
-//
-//
-//        rc = ts1;
-//
-//      }
-//    }
-//  } catch (const std::exception& ex) {
-//    rc = 0;
-//  }
-//
-//  return rc;
-//
-//
-//}
-
-//      const std::string IF_IN_OCT_OID = "1.3.6.1.2.1.31.1.1.1.6";
-//      const std::string IF_IN_UCAST_OID = "1.3.6.1.2.1.31.1.1.1.7";
-//      const std::string IF_IN_MCAST_OID = "1.3.6.1.2.1.31.1.1.1.8";
-//      const std::string IF_IN_BCAST_OID = "1.3.6.1.2.1.31.1.1.1.9";
-//      const std::string IF_OUT_OCT_OID = "1.3.6.1.2.1.31.1.1.1.10";
-//      const std::string IF_OUT_UCAST_OID = "1.3.6.1.2.1.31.1.1.1.11";
-//      const std::string IF_OUT_MCAST_OID = "1.3.6.1.2.1.31.1.1.1.12";
-//      const std::string IF_OUT_BCAST_OID = "1.3.6.1.2.1.31.1.1.1.13";
-
-size_t SwitchFetcher::get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table,bool first_time) {
-  size_t rc = 0;
-  try {
-    SNMPOPT opt(_ss);
-    nlohmann::json subtree{};
-
-    if(first_time) {
-      opt.oid = IF_ADMIN_OID;
-      rc = snmp_bulkwalk(opt, subtree);
-      if (rc == 0) return rc;
-
-      opt.oid = IF_OPER_OID;
-      rc = snmp_bulkwalk(opt, subtree);
-      if (rc == 0) return rc;
-    }
-
-    opt.oid = IF_IN_OCT_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    if (rc == 0) {return rc;}
-
-    opt.oid = IF_IN_UCAST_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    opt.oid = IF_IN_MCAST_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    opt.oid = IF_IN_BCAST_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    opt.oid = IF_OUT_OCT_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    opt.oid = IF_OUT_UCAST_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    opt.oid = IF_OUT_MCAST_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-    opt.oid = IF_OUT_BCAST_OID;
-    rc = snmp_bulkwalk(opt, subtree);
-
-    rc = columns_to_table(subtree, table);
-
-
-  } catch (const std::exception& ex) {
-    rc = 0;
-  }
-
-  return rc;
-}
-
 size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates,const bool bits_only) {
 
   size_t rc = 0;
@@ -583,6 +448,7 @@ size_t SwitchFetcher::get_intf_inout_rate(std::map<std::string,InOutRate>& rates
 
 }
 
+
 size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std::pair<double, double>>& util_pairs) {
 
   size_t rc = 0;
@@ -655,78 +521,70 @@ size_t SwitchFetcher::get_intf_usage_pairs(SwitchInfo::TYPE type,std::vector<std
 
 }
 
-size_t SwitchFetcher::get_intf_info_list(SwitchInfo::TYPE type,std::vector<InterfaceInfo>& info_list) {
+bool SwitchFetcher::get_double_with_one_oid(const std::string& oid,double& usage) {
+  bool ret = false;
 
-  size_t rc = 0;
-  try{
-    if (_ss) {
+  if (_ss) {
 
-      SNMPOPT opt(_ss);
-      nlohmann::json iftable{};
-
-      opt.oid = IF_TABLE_OID;
-      auto ts = snmp_table(opt, iftable);
-
-      if (ts == 0) return rc;
-
-      std::map<std::string,InOutRate> rates{};
-
-      rc = get_intf_inout_rate(rates);
-
-      if (rc == 0) return rc;
-
-      std::map<std::string,IpAddr> ipaddrs{};
-
-      get_ip_table(ipaddrs);
-
-      info_list.clear();
-      for (size_t i = 0; i != ts; ++i) {
-
-        InterfaceInfo info;
-
-        //get ip_table info
-        auto index = iftable[i]["_fake_index"].get<std::string>();
-
-        info.mac = iftable[i]["ifPhysAddress"].get<std::string>();
-
-        info.desc = iftable[i]["ifDescr"].get<std::string>();
-
-        info.status = ifAdminStatus2str(iftable[i]["ifAdminStatus"].get<int>());
-
-
-        //get ifxtable info
-        if (rates.find(index) != rates.end()) {
-          auto rate = rates[index];
-          info.sentBitsPerSec = rate.sentBitsPerSec;
-          info.recvBitsPerSec = rate.recvBitsPerSec;
-          info.sentPktsPerSec = rate.sentPktsPerSec;
-          info.recvPktsPerSec = rate.recvPktsPerSec;
-          info.name = rate.name;
-
-        }
-
-        // get ipaddr table info
-        if (ipaddrs.find(index) != ipaddrs.end()) {
-
-          info.ip = ipaddrs[index].ipAdEntAddr;
-          info.mask = ipaddrs[index].ipAdEntNetMask;
-          info.index = atol(index.c_str());
-        }
-
-
-        info_list.push_back(info);
-      }
+    SNMPOPT opt(_ss);
+    opt.name = "usage";
+    opt.oid = oid;
+    nlohmann::json j;
+    if(snmp_get(opt,j) == 0) {
+      usage = j["usage"].get<double>();
+      ret = true;
     }
 
-  }catch (...) {
-    rc = -1;
+  }
+
+  return ret;
+}
+
+
+size_t SwitchFetcher::get_intf_rate_table(SwitchInfo::TYPE type,nlohmann::json& table) {
+  size_t rc = 0;
+  try {
+    SNMPOPT opt(_ss);
+    nlohmann::json subtree{};
+
+
+      opt.oid = IF_ADMIN_OID;
+      rc = snmp_bulkwalk(opt, subtree);
+      if (rc == 0) return rc;
+
+      opt.oid = IF_OPER_OID;
+      rc = snmp_bulkwalk(opt, subtree);
+      if (rc == 0) return rc;
+
+
+    opt.oid = IF_IN_OCT_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    if (rc == 0) {return rc;}
+
+    opt.oid = IF_IN_UCAST_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    opt.oid = IF_IN_MCAST_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    opt.oid = IF_IN_BCAST_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    opt.oid = IF_OUT_OCT_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    opt.oid = IF_OUT_UCAST_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    opt.oid = IF_OUT_MCAST_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+    opt.oid = IF_OUT_BCAST_OID;
+    rc = snmp_bulkwalk(opt, subtree);
+
+    rc = columns_to_table(subtree, table);
+
+
+  } catch (const std::exception& ex) {
+    rc = 0;
   }
 
   return rc;
-
-
 }
-
 
 size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<InterfaceBaseInfo>& base_info) {
   size_t rc = 0;
@@ -736,7 +594,7 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
       SNMPOPT opt(_ss);
       nlohmann::json subtree{};
 
-      opt.oid = IFX_NAME_OID;
+      opt.oid = IF_DESCR_OID;
       auto ts = snmp_bulkwalk(opt, subtree);
       if (ts == 0) return rc;
 
@@ -768,7 +626,7 @@ size_t SwitchFetcher::get_intf_base_info(SwitchInfo::TYPE type,std::vector<Inter
         info.mac = table[i]["ifPhysAddress"].get<std::string>();
 
 
-        info.name = table[i]["ifName"].get<std::string>();
+        info.name = table[i]["ifDescr"].get<std::string>();
 
 
         // get ipaddr table info
@@ -801,13 +659,13 @@ size_t SwitchFetcher::get_intf_rate_info(SwitchInfo::TYPE type,std::vector<Inter
       SNMPOPT opt(_ss);
       nlohmann::json table2{}, table1{};
 
-      auto ts1 = get_intf_rate_table(type,table1,true);
+      auto ts1 = get_intf_rate_table(type,table1);
       auto start = get_time::now();
       if (ts1 == 0) return rc;
       
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-      auto ts2 = get_intf_rate_table(type,table2,false);
+      auto ts2 = get_intf_rate_table(type,table2);
       auto end = get_time::now();
       if (ts2 != ts1) return rc;
       auto diff = std::chrono::duration_cast<ms>(end - start).count();
@@ -1099,30 +957,6 @@ int get_switch_info(const std::string& ip,
 }
 
 
-int get_interface_info(const std::string& ip,
-                       const std::string& community,
-                       const SwitchInfo::TYPE type,
-                       std::vector<InterfaceInfo>& info_list) {
-
-  int ret = 1;
-
-  try {
-
-    SwitchFetcher fetcher(ip,community);
-
-    ret = fetcher.get_intf_info_list(type, info_list);
-    if (ret > 0) {
-      ret = 0;
-    }
-
-  } catch (const std::exception& ex) {
-    ret = 1;
-  }
-
-  return ret;
-
-}
-
 
 //if get success return 0;
 int get_interfacebase_info(const std::string& ip,
@@ -1171,6 +1005,51 @@ int get_interfacerate_info(const std::string& ip,
 }
 
 
+int get_arp_list(const std::string& ip,
+                 const std::string& community,
+                 const SwitchInfo::TYPE type,
+                 std::vector<Arp>& arp_list) {
+  int ret = 1;
+
+  try {
+
+    SwitchFetcher fetcher(ip,community);
+
+    ret = fetcher.get_arp_table(type, arp_list);
+    if (ret > 0) {
+      ret = 0;
+    }
+
+  } catch (const std::exception& ex) {
+    ret = 1;
+  }
+
+  return ret;
+}
+
+int get_dot1_list(const std::string& ip,
+                  const std::string& community,
+                  const SwitchInfo::TYPE type,
+                  std::vector<Dot1dTpFdbTable>& dot_list) {
+  int ret = 1;
+
+  try {
+
+    SwitchFetcher fetcher(ip,community);
+
+    ret = fetcher.get_dot_table(type, dot_list);
+    if (ret > 0) {
+      ret = 0;
+    }
+
+  } catch (const std::exception& ex) {
+    ret = 1;
+  }
+
+  return ret;
+}
+
+
 size_t SwitchFetcher::get_ip_table(std::map<std::string,IpAddr>& ipaddrs) {
   size_t rc = 0;
   try {
@@ -1203,4 +1082,74 @@ size_t SwitchFetcher::get_ip_table(std::map<std::string,IpAddr>& ipaddrs) {
     rc = 0;
   }
   return rc;
+}
+
+size_t SwitchFetcher::get_arp_table(SwitchInfo::TYPE type,std::vector<Arp>& arp_list) {
+  size_t rc = 0;
+  try {
+    SNMPOPT opt(_ss);
+    opt.oid = IPNET_TO_MEDIA_TABLE_OID;
+
+    nlohmann::json table;
+
+    if (snmp_table(opt, table) > 0) {
+      arp_list.clear();
+      Arp arp;
+      for (const auto &row : table) {
+
+        arp.index = row["_fake_index"].get<std::string>();
+        arp.ipNetToMediaIfIndex = row["ipNetToMediaIfIndex"].get<long>();
+        arp.ipNetToMediaNetAddress = row["ipNetToMediaNetAddress"].get<std::string>();
+        arp.ipNetToMediaPhysAddress = row["ipNetToMediaPhysAddress"].get<std::string>();
+        arp.ipNetToMediaType = row["ipNetToMediaType"].get<long>();
+        arp_list.push_back(arp);
+        ++rc;
+      }
+    }
+
+  }
+  catch (const std::exception &e) {
+    rc = 0;
+  }
+  catch (...) {
+    rc = 0;
+  }
+  return rc;
+}
+
+
+
+
+size_t SwitchFetcher::get_dot_table(SwitchInfo::TYPE type,std::vector<Dot1dTpFdbTable>& dot_list) {
+
+  size_t rc = 0;
+  try {
+    SNMPOPT opt(_ss);
+    opt.oid = DOT1D_TPFDB_OID;
+
+    nlohmann::json table;
+
+    if (snmp_table(opt, table) > 0) {
+      dot_list.clear();
+      Dot1dTpFdbTable dot;
+      for (const auto &row : table) {
+        dot.index = row["_fake_index"].get<std::string>();
+        dot.macAddr = row["dot1dTpFdbAddress"].get<std::string>();
+        dot.port = row["dot1dTpFdbPort"].get<int>();
+        dot.status = row["dot1dTpFdbStatus"].get<int>();
+        dot_list.push_back(dot);
+        ++rc;
+      }
+    }
+
+  }
+  catch (const std::exception &e) {
+    rc = 0;
+  }
+  catch (...) {
+    rc = 0;
+  }
+  return rc;
+
+
 }
